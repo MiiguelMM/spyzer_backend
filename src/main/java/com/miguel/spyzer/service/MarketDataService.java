@@ -276,12 +276,12 @@ public class MarketDataService {
     @Transactional
     @CacheEvict(value = "premiumPrices", allEntries = true, beforeInvocation = true)
     public void actualizarGrupoPremium() {
-        // TEMPORAL: Comentado para testing - descomentar en producción
-        // if (!marketHoursService.isNYSEOpen()) {
-        // System.out.println("⏸️ Scheduler PREMIUM pausado - Mercado NYSE cerrado | "
-        // + marketHoursService.getMarketStatusInfo());
-        // return;
-        // }
+      
+        if (!marketHoursService.isNYSEOpen()) {
+        System.out.println("⏸️ Scheduler PREMIUM pausado - Mercado NYSE cerrado | "
+        + marketHoursService.getMarketStatusInfo());
+        return;
+        }
 
         actualizarGrupoDeSimbolos(
                 symbolGroupConfig.getSymbolsByFrequency(
@@ -302,12 +302,12 @@ public class MarketDataService {
     @Transactional
     @CacheEvict(value = "standardPrices", allEntries = true, beforeInvocation = true)
     public void actualizarGrupoEstandar() {
-        // TEMPORAL: Comentado para testing - descomentar en producción
-        // if (!marketHoursService.isNYSEOpen()) {
-        // System.out.println("⏸️ Scheduler ESTÁNDAR pausado - Mercado NYSE cerrado | "
-        // + marketHoursService.getMarketStatusInfo());
-        // return;
-        // }
+     
+        if (!marketHoursService.isNYSEOpen()) {
+        System.out.println("⏸️ Scheduler ESTÁNDAR pausado - Mercado NYSE cerrado | "
+        + marketHoursService.getMarketStatusInfo());
+        return;
+        }
 
         actualizarGrupoDeSimbolos(
                 symbolGroupConfig.getSymbolsByFrequency(
@@ -325,12 +325,12 @@ public class MarketDataService {
     @Transactional
     @CacheEvict(value = "extendedPrices", allEntries = true, beforeInvocation = true)
     public void actualizarGrupoExtendido() {
-        // TEMPORAL: Comentado para testing - descomentar en producción
-        // if (!marketHoursService.isNYSEOpen()) {
-        // System.out.println("⏸️ Scheduler EXTENDIDO pausado - Mercado NYSE cerrado | "
-        // + marketHoursService.getMarketStatusInfo());
-        // return;
-        // }
+        
+        if (!marketHoursService.isNYSEOpen()) {
+        System.out.println("⏸️ Scheduler EXTENDIDO pausado - Mercado NYSE cerrado | "
+        + marketHoursService.getMarketStatusInfo());
+        return;
+        }
 
         actualizarGrupoDeSimbolos(
                 symbolGroupConfig.getSymbolsByFrequency(
