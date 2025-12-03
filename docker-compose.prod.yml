@@ -1,0 +1,111 @@
+# docker-compose.prod.yml
+
+version: '3.8'
+
+services:
+  # Servicio de MySQL para Producción
+  mysql:
+    image: mysql:8.0
+    container_name: spyzer_mysql_prod
+
+    # 1. PUERTOS: Se elimina el mapeo de puertos para que sea inaccesible desde fuera
+    ports: []
+
+    # Cargar variables de entorno desde .env.prod
+    env_file:
+      - .env.prod
+
+    # 2. SEGURIDAD: Variables de entorno con contraseñas seguras
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=spyzerifnotexist
+
+    # 3. PERSISTENCIA: Volumen dedicado para producción
+    volumes:
+      - mysql-prod-data:/var/lib/mysql
+
+    command: --default-authentication-plugin=mysql_native_password
+
+    # 4. RESILIENCIA: Reinicia siempre si el contenedor falla
+    restart: always
+
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Servicio de Redis para Producción
+  redis:
+    image: redis:7-alpine
+    container_name: spyzer_redis_prod
+
+    # Cargar variables de entorno desde .env.prod
+    env_file:
+      - .env.prod
+
+    # 1. SEGURIDAD: Añadir contraseña
+    command: redis-server --requirepass "${REDIS_PASSWORD}"
+
+    # 2. PUERTOS: Se elimina el mapeo de puertos para que sea inaccesible desde fuera
+    ports: []
+
+    # 3. PERSISTENCIA: Volumen dedicado para producción
+    volumes:
+      - redis-prod-data:/data
+
+    # 4. RESILIENCIA: Reinicia siempre si el contenedor falla
+    restart: always
+
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--pass", "${REDIS_PASSWORD}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Servicio de la Aplicación Spring Boot para Producción
+  app:
+    build: .
+    container_name: spyzer_backend_prod
+
+    # Puerto expuesto (puede ser mapeado a través de un reverse proxy como Nginx)
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    # 5. RESILIENCIA: Reinicia siempre si la aplicación falla
+    restart: always
+
+    # IMPORTANTE: Cargar variables de entorno desde .env.prod
+    # Asegúrate de crear este archivo con valores seguros antes de desplegar
+    env_file:
+      - .env.prod
+
+    # 6. CONEXIÓN SEGURA: Inyecta las contraseñas para la autenticación
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/spyzerifnotexist?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_DATA_REDIS_PASSWORD=${REDIS_PASSWORD}
+      - APPLICATION_FRONTEND_URL=${FRONTEND_URL}
+      - APPLICATION_SECURITY_JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - TWELVEDATA_API_KEY=${TWELVEDATA_API_KEY}
+      - SPRING_MAIL_USERNAME=${MAIL_USERNAME}
+      - SPRING_MAIL_PASSWORD=${MAIL_PASSWORD}
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+
+# 7. Definición de Volúmenes de Producción
+volumes:
+  mysql-prod-data:
+    name: spyzer_mysql_prod_volume
+  redis-prod-data:
+    name: spyzer_redis_prod_volume
