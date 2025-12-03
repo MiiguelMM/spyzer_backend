@@ -9,19 +9,15 @@ RUN apk add --no-cache maven
 # Establecer directorio de trabajo
 WORKDIR /app
 
-# Copiar archivos de configuración de Maven
+# Copiar todo el proyecto
 COPY pom.xml .
 COPY .mvn .mvn
 COPY mvnw .
-
-# Descargar dependencias (se cachea si pom.xml no cambia)
-RUN mvn dependency:go-offline -B
-
-# Copiar código fuente
 COPY src ./src
 
 # Compilar y empaquetar (sin ejecutar tests)
-RUN mvn clean package -DskipTests
+# Maven descargará las dependencias automáticamente durante el build
+RUN mvn clean package -DskipTests -B
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
