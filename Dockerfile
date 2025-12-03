@@ -32,5 +32,5 @@ COPY --from=build /app/target/spyzer-0.0.1-SNAPSHOT.jar app.jar
 # Exponer el puerto (Railway usa variable PORT dinámica)
 EXPOSE 8080
 
-# Comando para ejecutar la aplicación
-ENTRYPOINT ["java","-jar","/app.jar"]
+# Comando para ejecutar la aplicación con perfil railway
+ENTRYPOINT ["java","-Dspring.profiles.active=railway","-jar","/app.jar"]
