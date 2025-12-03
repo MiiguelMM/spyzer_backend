@@ -1,8 +1,8 @@
 # Archivos y directorios a ignorar al construir la imagen Docker
 
-# Maven
-# target/ directory is needed for the JAR file
-!target/*.jar
+# Maven - ignorar target pero el multi-stage build lo generará dentro del contenedor
+target/
+*.jar
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
@@ -91,5 +91,5 @@ README.md
 HELP.md
 docs/
 
-# Tests
-src/test/
+# Tests - no ignorar src/test/ porque Maven lo necesita para compilar
+# src/test/

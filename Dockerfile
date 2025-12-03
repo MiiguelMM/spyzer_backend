@@ -1,17 +1,36 @@
-# Dockerfile
+# Dockerfile - Multi-stage build for Railway
 
-# Usamos una imagen base ligera de Java 21
-FROM eclipse-temurin:21-jdk-alpine
+# Stage 1: Build
+FROM eclipse-temurin:21-jdk-alpine AS build
 
-# Definir el argumento para la ruta del JAR
-ARG JAR_FILE=target/spyzer-0.0.1-SNAPSHOT.jar
+# Instalar Maven
+RUN apk add --no-cache maven
 
-# Copiar el JAR generado al contenedor
-COPY ${JAR_FILE} app.jar
+# Establecer directorio de trabajo
+WORKDIR /app
 
-# Exponer el puerto (Render usa variable PORT dinámica)
+# Copiar archivos de configuración de Maven
+COPY pom.xml .
+COPY .mvn .mvn
+COPY mvnw .
+
+# Descargar dependencias (se cachea si pom.xml no cambia)
+RUN mvn dependency:go-offline -B
+
+# Copiar código fuente
+COPY src ./src
+
+# Compilar y empaquetar (sin ejecutar tests)
+RUN mvn clean package -DskipTests
+
+# Stage 2: Runtime
+FROM eclipse-temurin:21-jre-alpine
+
+# Copiar el JAR desde el stage de build
+COPY --from=build /app/target/spyzer-0.0.1-SNAPSHOT.jar app.jar
+
+# Exponer el puerto (Railway usa variable PORT dinámica)
 EXPOSE 8080
 
 # Comando para ejecutar la aplicación
-# Render proporciona la variable PORT, Spring Boot la leerá automáticamente
 ENTRYPOINT ["java","-jar","/app.jar"]
