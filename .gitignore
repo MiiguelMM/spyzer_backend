@@ -37,3 +37,35 @@ build/
 .env.local
 .env.production
 .env.prod
+
+### Spring Boot Configuration with Sensitive Data ###
+application-prod.properties
+application-production.properties
+application-local.properties
+application-dev.properties
+*.properties.local
+config/*.properties
+
+### Certificates and Keys ###
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+*.truststore
+*.crt
+*.cer
+
+### Credentials and Secrets ###
+secrets/
+credentials.json
+*-credentials.json
+serviceAccountKey.json
+
+### Database Backups ###
+*.sql
+*.dump
+*.backup
+
+### Session Files ###
+*.session

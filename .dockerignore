@@ -54,6 +54,38 @@ Thumbs.db
 *.swp
 *~
 
+# Configuración sensible de Spring Boot
+application-prod.properties
+application-production.properties
+application-local.properties
+application-dev.properties
+*.properties.local
+config/*.properties
+
+# Certificados y claves
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+*.truststore
+*.crt
+*.cer
+
+# Credenciales y secretos
+secrets/
+credentials.json
+*-credentials.json
+serviceAccountKey.json
+
+# Backups de base de datos
+*.sql
+*.dump
+*.backup
+
+# Archivos de sesión
+*.session
+
 # Documentación
 README.md
 HELP.md
