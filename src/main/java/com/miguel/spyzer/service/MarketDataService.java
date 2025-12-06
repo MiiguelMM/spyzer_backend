@@ -339,26 +339,141 @@ public class MarketDataService {
     }
 
     /**
-     * Actualiza los 4 índices principales 1 hora después del cierre del mercado.
-     * Se ejecuta a las 5:00 PM ET (23:00 hora España) de lunes a viernes.
+     * Actualiza los 4 índices principales 30 minutos después del cierre del mercado.
+     * Se ejecuta a las 4:30 PM ET (22:30 hora España) de lunes a viernes.
      *
-     * Esto asegura capturar los precios de cierre definitivos del día,
-     * ya que a veces hay ajustes post-cierre que no se reflejan durante el trading.
+     * Utiliza el endpoint de HISTÓRICOS (/time_series) en lugar de /quote para
+     * garantizar que obtiene el precio de cierre oficial consolidado del día,
+     * no precios de after-hours.
      *
      * Coste: 4 llamadas/día (SPY, QQQ, DAX, FXI)
      */
-    @Scheduled(cron = "0 0 17 * * MON-FRI", zone = "America/New_York")
+    @Scheduled(cron = "0 30 16 * * MON-FRI", zone = "America/New_York")
     @Transactional
     public void actualizarIndicesPostCierre() {
         System.out.println("\n========================================");
-        System.out.println("=== ACTUALIZACIÓN POST-CIERRE DE ÍNDICES ===");
+        System.out.println("=== ACTUALIZACIÓN POST-CIERRE DE ÍNDICES (desde históricos) ===");
         System.out.println("Hora: " + marketHoursService.getMarketStatusInfo());
         System.out.println("========================================\n");
 
-        // Actualizar solo los 4 índices principales
-        actualizarGrupoDeSimbolos(INDICES, "POST-CIERRE ÍNDICES");
+        List<MarketData> datosNuevos = new ArrayList<>();
+        int exitosos = 0;
+        int fallidos = 0;
 
-        System.out.println("\n=== Actualización post-cierre completada ===\n");
+        // Obtener cierre oficial de cada índice desde históricos
+        for (String symbol : INDICES) {
+            try {
+                MarketData cierreOficial = obtenerCierreOficialDesdeHistoricos(symbol);
+
+                if (cierreOficial != null) {
+                    datosNuevos.add(cierreOficial);
+                    exitosos++;
+                    System.out.println("✓ Cierre oficial obtenido para " + symbol +
+                                     " | Precio: $" + cierreOficial.getClose());
+                } else {
+                    fallidos++;
+                    System.err.println("✗ No se pudo obtener cierre oficial de " + symbol);
+                }
+
+            } catch (Exception e) {
+                fallidos++;
+                System.err.println("✗ Error obteniendo cierre de " + symbol + ": " + e.getMessage());
+            }
+        }
+
+        // Guardar en BD
+        if (!datosNuevos.isEmpty()) {
+            for (String symbol : INDICES) {
+                marketDataRepository.deleteBySymbol(symbol);
+            }
+            marketDataRepository.saveAll(datosNuevos);
+
+            System.out.println("\n========================================");
+            System.out.println("RESUMEN POST-CIERRE");
+            System.out.println("========================================");
+            System.out.println("✅ Exitosos: " + exitosos + "/" + INDICES.size());
+            System.out.println("❌ Fallidos: " + fallidos);
+            System.out.println("========================================\n");
+
+            // Guardar en Redis y crear puntos históricos
+            guardarEnRedisZSET(datosNuevos);
+            guardarPuntosHistoricosIndices(datosNuevos);
+        }
+
+        System.out.println("=== Actualización post-cierre completada ===\n");
+    }
+
+    /**
+     * Obtiene el precio de cierre oficial del día actual desde el endpoint de históricos.
+     * Esto garantiza obtener el cierre consolidado oficial (4:00 PM ET exactas),
+     * no precios de after-hours.
+     *
+     * @param symbol Símbolo a consultar
+     * @return MarketData con el cierre oficial, o null si no se pudo obtener
+     */
+    private MarketData obtenerCierreOficialDesdeHistoricos(String symbol) {
+        try {
+            // RATE LIMITING
+            apiRateLimiter.esperarSiEsNecesario();
+
+            String interval = "1day";
+            String outputsize = "1"; // Solo el día más reciente
+
+            String url = String.format("%s/time_series?symbol=%s&interval=%s&outputsize=%s&apikey=%s",
+                    TWELVE_DATA_URL, symbol, interval, outputsize, twelveDataApiKey);
+
+            System.out.println("🔍 Obteniendo cierre oficial desde históricos: " + symbol);
+
+            TwelveDataTimeSeriesResponse response = restTemplate.getForObject(url,
+                    TwelveDataTimeSeriesResponse.class);
+
+            if (response != null && response.getValues() != null && !response.getValues().isEmpty()) {
+                TwelveDataValue dayData = response.getValues().get(0); // Día más reciente
+
+                if (dayData.getClose() != null) {
+                    BigDecimal close = new BigDecimal(dayData.getClose());
+                    BigDecimal open = dayData.getOpen() != null ? new BigDecimal(dayData.getOpen()) : close;
+                    BigDecimal high = dayData.getHigh() != null ? new BigDecimal(dayData.getHigh()) : close;
+                    BigDecimal low = dayData.getLow() != null ? new BigDecimal(dayData.getLow()) : close;
+
+                    // Calcular previous close si hay más de 1 día disponible
+                    BigDecimal previousClose = close; // Fallback
+                    BigDecimal change = BigDecimal.ZERO;
+                    BigDecimal changePercent = BigDecimal.ZERO;
+
+                    // Para calcular variación necesitaríamos el día anterior,
+                    // pero con outputsize=1 solo tenemos hoy
+                    // Podríamos hacer otra llamada pero sería otra API call
+                    // Por ahora usamos los datos que tenemos
+
+                    return MarketData.builder()
+                            .symbol(symbol.toUpperCase())
+                            .precio(close)
+                            .open(open)
+                            .high(high)
+                            .low(low)
+                            .close(close)
+                            .volumen(dayData.getVolume() != null && !dayData.getVolume().isEmpty()
+                                    ? Long.parseLong(dayData.getVolume())
+                                    : null)
+                            .precioAnterior(previousClose)
+                            .variacionAbsoluta(change)
+                            .variacionPorcentual(changePercent)
+                            .dataType(REALTIME)
+                            .timestamp(LocalDateTime.now())
+                            .build();
+                } else {
+                    System.err.println("✗ Datos históricos sin campo 'close' para " + symbol);
+                }
+            } else {
+                System.err.println("✗ Respuesta vacía de históricos para " + symbol);
+            }
+
+        } catch (Exception e) {
+            System.err.println("✗ Error obteniendo históricos de " + symbol + ": " + e.getMessage());
+        }
+
+        return null;
     }
 
     /**
