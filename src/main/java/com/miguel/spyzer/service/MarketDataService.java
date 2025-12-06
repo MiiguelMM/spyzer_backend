@@ -339,6 +339,29 @@ public class MarketDataService {
     }
 
     /**
+     * Actualiza los 4 índices principales 1 hora después del cierre del mercado.
+     * Se ejecuta a las 5:00 PM ET (23:00 hora España) de lunes a viernes.
+     *
+     * Esto asegura capturar los precios de cierre definitivos del día,
+     * ya que a veces hay ajustes post-cierre que no se reflejan durante el trading.
+     *
+     * Coste: 4 llamadas/día (SPY, QQQ, DAX, FXI)
+     */
+    @Scheduled(cron = "0 0 17 * * MON-FRI", zone = "America/New_York")
+    @Transactional
+    public void actualizarIndicesPostCierre() {
+        System.out.println("\n========================================");
+        System.out.println("=== ACTUALIZACIÓN POST-CIERRE DE ÍNDICES ===");
+        System.out.println("Hora: " + marketHoursService.getMarketStatusInfo());
+        System.out.println("========================================\n");
+
+        // Actualizar solo los 4 índices principales
+        actualizarGrupoDeSimbolos(INDICES, "POST-CIERRE ÍNDICES");
+
+        System.out.println("\n=== Actualización post-cierre completada ===\n");
+    }
+
+    /**
      * Guardar puntos históricos de los 4 índices principales cada vez que se
      * actualiza
      */
